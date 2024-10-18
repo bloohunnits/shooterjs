@@ -1,0 +1,13 @@
+body {
+    margin: 0; /* Remove default margin */
+    overflow: hidden; /* Prevent scrolling */
+    display: flex; /* Use flexbox for centering */
+    justify-content: center; /* Center horizontally */
+    align-items: center; /* Center vertically */
+    height: 100vh; /* Full viewport height */
+    background-color: #000; /* Black background */
+}
+
+canvas {
+    border: 1px solid #fff; /* White border around the canvas */
+}
