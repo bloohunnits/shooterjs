@@ -52,7 +52,7 @@ function shoot() {
             y: player.y,
             angle: player.angle,
             speed: 10,
-            range: 500,
+            range: 1000,
             distance: 0,
         });
     }
