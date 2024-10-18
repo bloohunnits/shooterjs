@@ -13,7 +13,7 @@ To get the project onto your computer, you’ll need to clone the repository fro
 ### Step 2: Navigate to the folder where you want to clone the project
 Before cloning, you need to decide where to store the project on your computer. You can navigate to any directory you want to work in using the `cd` command.
 
-For example, if you want to store the project in your `dev` folder:
+For example, if you want to store the project in a folder named `dev`:
 ```bash
 cd ~/dev
 ```
