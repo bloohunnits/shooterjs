@@ -16,17 +16,14 @@ To get the project onto your computer, you’ll need to clone the repository fro
 ### Step 2: Navigate to the folder where you want to clone the project
 Before cloning, you need to decide where to store the project on your computer. You can navigate to any directory you want to work in using the `cd` command.
 
-For example, if you want to store the project in a folder named `dev` you can run:
+For example, if you want to store the project in a folder named `dev` you can run this command:
 ```bash
 cd ~/dev
 ```
 
 Then create the game folders and navigate to the path
 ```bash
-mkdir games
-cd games
-mkdir top-down-shooter
-cd top-down-shooter
+mkdir games ; cd games ; mkdir top-down-shooter ; cd top-down-shooter
 ```
 
 Clone the files to the folder by running
