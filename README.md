@@ -26,7 +26,13 @@ mkdir top-down-shooter
 cd top-down-shooter
 ```
 
-### Step 2: Understand the Project Structure
+Clone the files to the folder by running
+```bash
+git clone 
+```
+
+
+### Step 3: Understand the Project Structure
 
 Inside the top-down-shooter folder, you’ll find the following key files:
 
@@ -36,7 +42,7 @@ titleScreen.js: The JavaScript file that manages the title screen.
 game.css: The stylesheet for styling the game elements.
 
 
-### Step 3: Running the Game in Your Browser
+### Step 4: Running the Game in Your Browser
 Once you have the files in your top-down-shooter folder, you can run the game directly in your browser.
 
 Open the game.html file in a web browser
