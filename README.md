@@ -28,7 +28,7 @@ cd top-down-shooter
 
 Clone the files to the folder by running
 ```bash
-git clone 
+git clone https://github.com/bloohunnits/shooterjs.git
 ```
 
 
