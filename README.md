@@ -18,7 +18,7 @@ For example, if you want to store the project in a folder named `dev` you can ru
 cd ~/dev
 ```
 
-Then create the game folders than navigate to the path
+Then create the game folders and navigate to the path
 ```bash
 mkdir games
 cd games
