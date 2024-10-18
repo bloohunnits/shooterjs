@@ -16,3 +16,11 @@ Before cloning, you need to decide where to store the project on your computer. 
 For example, if you want to store the project in your `dev` folder:
 ```bash
 cd ~/dev
+```
+
+```bash
+mkdir games
+cd games
+mkdir top-down-shooter
+cd top-down-shooter
+```
