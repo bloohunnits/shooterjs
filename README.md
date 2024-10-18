@@ -1,3 +1,5 @@
+
+<img width="1595" alt="Screenshot 2024-10-18 at 12 02 43 AM" src="https://github.com/user-attachments/assets/144da3ef-aa7d-4e04-adf1-38b3a640573d">
 # Setup and Running the Game
 
 This guide will walk you through how to download the game files, navigate through the project directory, and either run or edit the game locally. We’ll use the terminal for cloning the repository, navigating through folders, and running the game in a web browser.
