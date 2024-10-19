@@ -111,6 +111,7 @@ class Bullet {
     this.speed = 10;
     this.color = "yellow";
     this.damage = 5;
+    this.doesPierce = false;
     this.direction = { ...direction };
     this.distanceTraveled = 0;
     this.maxDistance = 4000; // Increased distance for the bullet
@@ -137,8 +138,11 @@ class Enemy {
     this.speed = 2;
     this.color = "red";
     this.health = 15;
+    this.defense = 10;
     this.score = 1;
     this.collisonDamage = 20;
+    this.isInvincible = false; // Add invincibility property
+    this.invincibilityDuration = 100; // Set i-frame duration
     const edge = Math.floor(Math.random() * 4);
     if (edge === 0) {
       this.x = Math.random() * canvas.width;
@@ -170,43 +174,41 @@ class Enemy {
   }
 }
 class DamageNumber {
-    constructor(x, y, damage) {
-      this.x = x;
-      this.y = y;
-      this.damage = damage;
-      this.opacity = 1; // Fully visible
-      this.lifetime = 1000; // 1 second duration
-      this.riseSpeed = 1; // Speed at which the number rises
-      this.fadeSpeed = 0.01; // Slower fade-out speed for smoother effect
-    }
-  
-    update() {
-      // Make the number rise and fade out
-      this.y -= this.riseSpeed;
-      this.opacity -= this.fadeSpeed;
-  
-      // Remove the damage number smoothly before it's fully invisible
-      if (this.opacity <= 0.1) {
-        this.destroy(); // Remove it before it becomes fully transparent
-      }
-    }
-  
-    draw() {
-      ctx.save();
-      ctx.globalAlpha = this.opacity; // Apply the fade-out effect
-      ctx.fillStyle = 'white'; // Color of the damage number
-      ctx.font = '20px Arial';
-      ctx.fillText(this.damage, this.x, this.y);
-      ctx.restore();
-    }
-  
-    destroy() {
-      // Remove from the array without waiting for full opacity = 0 to avoid flashing
-      damageNumbers.splice(damageNumbers.indexOf(this), 1); 
+  constructor(x, y, damage) {
+    this.x = x;
+    this.y = y;
+    this.damage = damage;
+    this.opacity = 1; // Fully visible
+    this.lifetime = 1000; // 1 second duration
+    this.riseSpeed = 1; // Speed at which the number rises
+    this.fadeSpeed = 0.01; // Slower fade-out speed for smoother effect
+  }
+
+  update() {
+    // Make the number rise and fade out
+    this.y -= this.riseSpeed;
+    this.opacity -= this.fadeSpeed;
+
+    // Remove the damage number smoothly before it's fully invisible
+    if (this.opacity <= 0.1) {
+      this.destroy(); // Remove it before it becomes fully transparent
     }
   }
-  
-  
+
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.opacity; // Apply the fade-out effect
+    ctx.fillStyle = "white"; // Color of the damage number
+    ctx.font = "20px Arial";
+    ctx.fillText(this.damage, this.x, this.y);
+    ctx.restore();
+  }
+
+  destroy() {
+    // Remove from the array without waiting for full opacity = 0 to avoid flashing
+    damageNumbers.splice(damageNumbers.indexOf(this), 1);
+  }
+}
 
 function spawnEnemy() {
   if (!gameOver && !paused && enemiesRemaining > 0 && !waveCooldown) {
@@ -237,21 +239,36 @@ function isDead(thing) {
 }
 
 function handleEnemyDamage(player, bullet, enemy) {
-    const totalDamage = player.attack + bullet.damage;
+  if (!enemy.isInvincible) {
+    const totalDamage = player.attack + bullet.damage - enemy.defense;
     enemy.health -= totalDamage;
     damageNumbers.push(new DamageNumber(enemy.x, enemy.y, totalDamage));
+
+    enemy.isInvincible = true; // Set invincibility
+    setTimeout(() => {
+      enemy.isInvincible = false; // Remove invincibility after duration
+    }, enemy.invincibilityDuration); // Same duration as player i-frames
+
+    if(!bullet.doesPierce)  bullet.destroy();
     if (isDead(enemy)) {
       handleEnemyDeathByBullet(bullet, enemy);
+      updateScore(enemy);
     }
+    
   }
-  
+}
 
-function handleEnemyDeathByBullet(bullet, enemy) {
-    bullet.destroy();
-    enemy.destroy();
-    enemiesAliveInWave--;
-    console.log(enemiesAliveInWave, "enemiesAliveInWave:");
-  }
+function calculateEnemiesForWave(waveNumber) {
+  const baseEnemies = 5; // Base number of enemies in the first wave
+  const growthRate = 1.2; // Exponential growth rate (adjust as needed)
+  return Math.floor(baseEnemies * Math.pow(growthRate, waveNumber - 1));
+}
+
+function handleEnemyDeathByBullet(bullet,enemy) {
+  enemy.destroy();
+  enemiesAliveInWave--;
+  console.log(enemiesAliveInWave, "enemiesAliveInWave:");
+}
 
 function handleEnemyDeathByBullet(bullet, enemy) {
   bullet.destroy();
@@ -286,7 +303,6 @@ function updateGame() {
       enemies.forEach((enemy) => {
         if (isColliding(bullet, enemy)) {
           handleEnemyDamage(currentPlayer, bullet, enemy);
-          updateScore(enemy);
           handleWaveProgression(enemiesAliveInWave, waveCooldown);
         }
       });
@@ -302,9 +318,9 @@ function updateGame() {
 
     // Update and draw damage numbers
     damageNumbers.forEach((damageNumber) => {
-        damageNumber.update();
-        damageNumber.draw();
-      });
+      damageNumber.update();
+      damageNumber.draw();
+    });
 
     // Display the wave complete message during cooldown
   } else if (waveCooldown) {
@@ -327,8 +343,6 @@ function updateGame() {
   requestAnimationFrame(updateGame);
 }
 
-
-
 function spawnWaveEnemies() {
   console.log(`Starting wave ${currentWave} with ${enemiesRemaining} enemies.`);
   const spawnInterval = setInterval(() => {
@@ -342,11 +356,9 @@ function spawnWaveEnemies() {
 }
 
 function resetEnemySpawnCounters() {
-    enemiesRemaining = enemiesToSpawn; // Reset the number of enemies to spawn
-    enemiesAliveInWave = enemiesToSpawn; // Reset the number of alive enemies for the new wave
-    console.log(enemiesRemaining, "enemiesRemaining", enemiesToSpawn, "enemiesToSpawn");
-  }
-
+  enemiesRemaining = enemiesToSpawn; // Reset the number of enemies to spawn
+  enemiesAliveInWave = enemiesToSpawn; // Reset the number of alive enemies for the new wave
+}
 
 function triggerNextWaveCooldown() {
   waveCooldown = true;
@@ -354,7 +366,7 @@ function triggerNextWaveCooldown() {
 
   setTimeout(() => {
     console.log("Next wave starting now");
-    updateWave(); 
+    updateWave();
     spawnWaveEnemies(); // Start the next wave of enemies
   }, 3000); // 3-second delay between waves
 }
@@ -365,10 +377,8 @@ function updateGameInfoDisplay(score, currentWave) {
   ).innerText = `Score: ${score} Wave: ${currentWave}`;
 }
 
-function hideGameInfoDisplay(){
-    document.getElementById(
-        "gameInfo"
-      ).style.display= "none";
+function hideGameInfoDisplay() {
+  document.getElementById("gameInfo").style.display = "none";
 }
 
 function updateScore(enemy) {
@@ -379,26 +389,25 @@ function updateScore(enemy) {
 function updateWave() {
   currentWave++;
   updateGameInfoDisplay(score, currentWave);
-  enemiesToSpawn = 5 * currentWave; // Increase enemies based on wave number
+  enemiesToSpawn = calculateEnemiesForWave(currentWave);
   resetEnemySpawnCounters();
   waveCooldown = false; // End cooldown
 }
+
 function endGame() {
-    gameOver = true;
-    // Display the game over screen
-    const gameOverScreen = document.getElementById("gameOverScreen");
-  
-    // Set the content with the score and wave
-    gameOverScreen.innerHTML = `
-      <h1>Game Over</h1>
-      <p>Score: ${score}</p>
-      <p>Wave: ${currentWave}</p>
-      <button id="restartButton">Restart</button>
-    `;
-  
-    // Show the game over screen
-    gameOverScreen.style.display = "block";
-    hideGameInfoDisplay();
+  gameOver = true;
+  setFinalStats();
+  showGameOverDisplay();
+  hideGameInfoDisplay();
+}
+
+function setFinalStats() {
+  document.getElementById("finalScore").innerText = score; // Display final score
+  document.getElementById("finalWave").innerText = currentWave; // Display final wave
+}
+
+function showGameOverDisplay() {
+  document.getElementById("gameOverScreen").style.display = "block"; // Show game over screen
 }
 
 function resetPlayerPosition(player) {
@@ -412,14 +421,15 @@ function restartGame() {
   gameOver = false;
   paused = false;
   currentWave = 1; // Reset to wave 1
-  enemiesToSpawn = 5; // Start with 5 enemies in wave 1
+  enemiesToSpawn = calculateEnemiesForWave(currentWave);
   resetEnemySpawnCounters();
   resetPlayerPosition(currentPlayer);
   bullets.length = 0;
   enemies.length = 0;
   waveCooldown = false;
   updateGameInfoDisplay(score, currentWave);
-  document.getElementById("gameOverScreen").style.display = "none";
+  document.getElementById("gameOverScreen").style.display = "none"; // Hide game over screen
+  document.getElementById("gameInfo").style.display = "block"; // Show game info display
   // Reset and start the first wave
   spawnWaveEnemies(); // Start the first wave
   updateGame(); // Start the game loop
@@ -447,6 +457,9 @@ function shoot() {
 }
 
 // Event listeners
+
+document.getElementById("restartButton").addEventListener("click", restartGame);
+
 window.addEventListener("keydown", (e) => {
   keys[e.key] = true;
   if (e.key === " ") shoot();
@@ -466,7 +479,6 @@ canvas.addEventListener("mousedown", (e) => {
     shoot();
   }
 });
-document.getElementById("restartButton").addEventListener("click", restartGame);
 
 // Start the game
 
