@@ -133,16 +133,22 @@ class Bullet {
 
 // Enemy class
 class Enemy {
-  constructor() {
-    this.size = 30;
-    this.speed = 2;
-    this.color = "red";
-    this.health = 15;
-    this.defense = 10;
-    this.score = 1;
-    this.collisonDamage = 20;
-    this.isInvincible = false; // Add invincibility property
-    this.invincibilityDuration = 100; // Set i-frame duration
+  constructor(type, baseStats) {
+    this.size = baseStats.size; // Size remains constant across waves
+    this.color = baseStats.color; // Color remains constant across waves
+
+    // Scaling factors based on wave progression
+    const waveScalingFactor = 1 + (currentWave - 1) * 0.1; // Adjust scaling as needed
+    const defenseWaveScalingFactor = 1 + (currentWave - 1) * 0.025; // Adjust scaling as needed
+
+    // Stats that will scale with waves
+    this.health = baseStats.health * waveScalingFactor;
+    this.attack = baseStats.attack * waveScalingFactor;
+    this.defense = baseStats.defense * defenseWaveScalingFactor;
+    this.score = baseStats.score * waveScalingFactor;
+    this.collisionDamage = baseStats.collisionDamage * waveScalingFactor;
+    this.speed = baseStats.speed + (currentWave - 1) * 0.05; // Slow speed scaling per wave
+
     const edge = Math.floor(Math.random() * 4);
     if (edge === 0) {
       this.x = Math.random() * canvas.width;
@@ -158,6 +164,7 @@ class Enemy {
       this.y = Math.random() * canvas.height;
     }
   }
+
   update() {
     const dx = currentPlayer.x - this.x;
     const dy = currentPlayer.y - this.y;
@@ -165,14 +172,55 @@ class Enemy {
     this.x += (dx / distance) * this.speed;
     this.y += (dy / distance) * this.speed;
   }
+
   draw() {
     ctx.fillStyle = this.color;
     ctx.fillRect(this.x, this.y, this.size, this.size);
   }
+
   destroy() {
     enemies.splice(enemies.indexOf(this), 1);
   }
 }
+
+const enemyTypes = {
+  basic: {
+    health: 15,
+    attack: 5,
+    defense: 10,
+    score: 1,
+    collisionDamage: 20,
+    speed: 2,
+    size: 30, // Size remains constant across waves
+    color: "red", // Visual appearance remains constant
+  },
+  tank: {
+    health: 40,
+    attack: 3,
+    defense: 5,
+    score: 2,
+    collisionDamage: 15,
+    speed: 1.5, // Slower but stronger
+    size: 40, // Larger, heavier enemies
+    color: "blue",
+  },
+  fast: {
+    health: 10,
+    attack: 4,
+    defense: 1,
+    score: 1.5,
+    collisionDamage: 8,
+    speed: 3, // Faster enemy
+    size: 25, // Smaller, faster enemies
+    color: "green",
+  },
+};
+
+function createEnemy(type) {
+  const baseStats = enemyTypes[type];
+  return new Enemy(type, baseStats);
+}
+
 class DamageNumber {
   constructor(x, y, damage) {
     this.x = x;
@@ -213,13 +261,24 @@ class DamageNumber {
 function spawnEnemy() {
   if (!gameOver && !paused && enemiesRemaining > 0 && !waveCooldown) {
     enemiesRemaining--;
-    enemies.push(new Enemy());
+    // Randomly choose an enemy type
+    let enemyType;
+    if (currentWave >= 5 && currentWave < 10) {
+      enemyType = Math.random() < 0.7 ? "tank" : "basic"; // Mix of tank and basic
+    } else if (currentWave >= 10) {
+      enemyType =
+        Math.random() < 0.5 ? "fast" : Math.random() < 0.5 ? "tank" : "basic"; // All types
+    } else {
+      enemyType = "basic"; // Early waves, just basic enemies
+    }
+    enemies.push(createEnemy(enemyType));
   }
 }
 
 function handleCurrentPlayerDamage(enemy, player) {
+
   if (!player.isInvincible) {
-    player.health -= enemy.collisonDamage; // Decrease currentPlayer HP by collisionDamage
+    player.health -= enemy.collisionDamage; // Decrease currentPlayer HP by collisionDamage
     player.isInvincible = true; // Make currentPlayer invincible after taking damage
 
     // Set a timeout to remove invincibility after the duration
@@ -240,7 +299,8 @@ function isDead(thing) {
 
 function handleEnemyDamage(player, bullet, enemy) {
   if (!enemy.isInvincible) {
-    const totalDamage = player.attack + bullet.damage - enemy.defense;
+    let totalDamage = Math.max(0, (player.attack + bullet.damage) - enemy.defense); // Calculate damage and ensure it doesn't go negative
+    totalDamage =Math.round(totalDamage);
     enemy.health -= totalDamage;
     damageNumbers.push(new DamageNumber(enemy.x, enemy.y, totalDamage));
 
@@ -249,12 +309,11 @@ function handleEnemyDamage(player, bullet, enemy) {
       enemy.isInvincible = false; // Remove invincibility after duration
     }, enemy.invincibilityDuration); // Same duration as player i-frames
 
-    if(!bullet.doesPierce)  bullet.destroy();
+    if (!bullet.doesPierce) bullet.destroy();
     if (isDead(enemy)) {
       handleEnemyDeathByBullet(bullet, enemy);
       updateScore(enemy);
     }
-    
   }
 }
 
@@ -264,7 +323,7 @@ function calculateEnemiesForWave(waveNumber) {
   return Math.floor(baseEnemies * Math.pow(growthRate, waveNumber - 1));
 }
 
-function handleEnemyDeathByBullet(bullet,enemy) {
+function handleEnemyDeathByBullet(bullet, enemy) {
   enemy.destroy();
   enemiesAliveInWave--;
   console.log(enemiesAliveInWave, "enemiesAliveInWave:");
@@ -383,6 +442,7 @@ function hideGameInfoDisplay() {
 
 function updateScore(enemy) {
   score += enemy.score;
+  score = Math.round(score);
   updateGameInfoDisplay(score, currentWave);
 }
 
