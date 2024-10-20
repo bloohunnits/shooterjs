@@ -31,6 +31,7 @@ const player1 = {
   speed: 5,
   maxHealth: 100,
   health: 100,
+  defense: 10,
   attack: 10,
   isInvincible: false,
   invincibilityDuration: 1000,
@@ -104,28 +105,32 @@ currentPlayer = player1;
 
 // Bullet class
 class Bullet {
-  constructor(x, y, direction) {
-    this.x = x + currentPlayer.size / 2 - 5;
-    this.y = y + currentPlayer.size / 2 - 5;
+  constructor(x, y, direction, firedByPlayer = true) {
+    this.x = x + (firedByPlayer ? currentPlayer.size / 2 : 0) - 5;
+    this.y = y + (firedByPlayer ? currentPlayer.size / 2 : 0) - 5;
     this.size = 10;
-    this.speed = 10;
-    this.color = "yellow";
-    this.damage = 5;
-    this.doesPierce = false;
+    this.speed = firedByPlayer? 10 : 9;
+    this.color = firedByPlayer ? "yellow" : "red"; // Enemy bullets are red
+    const dmgScalingFactor = 1 + (currentWave - 1) * 0.05;
+    this.damage =  firedByPlayer ? 5: 3 * dmgScalingFactor; 
+    this.firedByPlayer = firedByPlayer; // Distinguish who fired the bullet
     this.direction = { ...direction };
     this.distanceTraveled = 0;
-    this.maxDistance = 4000; // Increased distance for the bullet
+    this.maxDistance = 4000;
   }
+
   update() {
     this.x += this.direction.x * this.speed;
     this.y += this.direction.y * this.speed;
     this.distanceTraveled += this.speed;
     if (this.distanceTraveled > this.maxDistance) this.destroy();
   }
+
   draw() {
     ctx.fillStyle = this.color;
     ctx.fillRect(this.x, this.y, this.size, this.size);
   }
+
   destroy() {
     bullets.splice(bullets.indexOf(this), 1);
   }
@@ -136,17 +141,22 @@ class Enemy {
   constructor(type, baseStats) {
     this.size = baseStats.size; // Size remains constant across waves
     this.color = baseStats.color; // Color remains constant across waves
+    this.canShoot = baseStats.canShoot || false; // Define if this enemy type can shoot
+    this.shootingInterval = baseStats.shootingInterval || 2000; // Default shooting interval (milliseconds)
+    this.lastShotTime = 0; // Track time since last shot
 
     // Scaling factors based on wave progression
-    const waveScalingFactor = 1 + (currentWave - 1) * 0.1; // Adjust scaling as needed
-    const defenseWaveScalingFactor = 1 + (currentWave - 1) * 0.025; // Adjust scaling as needed
+    const waveScalingFactor = 1 + (currentWave - 1) * 0.1;
+    const defenseWaveScalingFactor = 1 + (currentWave - 1) * 0.025;
+    const collisionWaveScalingFactor = 1 + (currentWave - 1) * 0.05;
 
     // Stats that will scale with waves
     this.health = baseStats.health * waveScalingFactor;
     this.attack = baseStats.attack * waveScalingFactor;
     this.defense = baseStats.defense * defenseWaveScalingFactor;
     this.score = baseStats.score * waveScalingFactor;
-    this.collisionDamage = baseStats.collisionDamage * waveScalingFactor;
+    this.collisionDamage =
+      baseStats.collisionDamage * collisionWaveScalingFactor;
     this.speed = baseStats.speed + (currentWave - 1) * 0.05; // Slow speed scaling per wave
 
     const edge = Math.floor(Math.random() * 4);
@@ -181,6 +191,24 @@ class Enemy {
   destroy() {
     enemies.splice(enemies.indexOf(this), 1);
   }
+  shoot() {
+    if (this.canShoot) {
+      const now = Date.now();
+      if (now - this.lastShotTime > this.shootingInterval) {
+        // Shoot a bullet in the direction of the player
+        const direction = {
+          x: currentPlayer.x - this.x,
+          y: currentPlayer.y - this.y,
+        };
+        const distance = Math.hypot(direction.x, direction.y);
+        direction.x /= distance; // Normalize direction
+        direction.y /= distance;
+
+        bullets.push(new Bullet(this.x, this.y, direction, false)); // Enemy bullet
+        this.lastShotTime = now; // Reset the shot timer
+      }
+    }
+  }
 }
 
 const enemyTypes = {
@@ -189,30 +217,42 @@ const enemyTypes = {
     attack: 5,
     defense: 10,
     score: 1,
-    collisionDamage: 20,
+    collisionDamage: 30,
     speed: 2,
     size: 30, // Size remains constant across waves
     color: "red", // Visual appearance remains constant
   },
   tank: {
-    health: 40,
-    attack: 3,
-    defense: 5,
+    health: 25,
+    attack: 4,
+    defense: 12,
     score: 2,
-    collisionDamage: 15,
+    collisionDamage: 38,
     speed: 1.5, // Slower but stronger
     size: 40, // Larger, heavier enemies
     color: "blue",
   },
   fast: {
     health: 10,
-    attack: 4,
-    defense: 1,
+    attack: 2,
+    defense: 6,
     score: 1.5,
-    collisionDamage: 8,
+    collisionDamage: 18,
     speed: 3, // Faster enemy
-    size: 25, // Smaller, faster enemies
+    size: 20, // Smaller, faster enemies
     color: "green",
+  },
+  shooter: {
+    health: 20,
+    attack: 4,
+    defense: 5,
+    score: 3,
+    collisionDamage: 15,
+    speed: 1.8,
+    size: 25,
+    color: "purple",
+    canShoot: true, // This enemy can shoot
+    shootingInterval: 2000, 
   },
 };
 
@@ -258,27 +298,63 @@ class DamageNumber {
   }
 }
 
-function spawnEnemy() {
-  if (!gameOver && !paused && enemiesRemaining > 0 && !waveCooldown) {
-    enemiesRemaining--;
-    // Randomly choose an enemy type
-    let enemyType;
-    if (currentWave >= 5 && currentWave < 10) {
-      enemyType = Math.random() < 0.7 ? "tank" : "basic"; // Mix of tank and basic
-    } else if (currentWave >= 10) {
-      enemyType =
-        Math.random() < 0.5 ? "fast" : Math.random() < 0.5 ? "tank" : "basic"; // All types
+function getRandomEnemyTypeByWaveNumber(waveNumber) {
+    let basicChance = 1;
+    let tankChance = 0;
+    let shooterChance = 0;
+  
+    if (waveNumber <= 2) {
+      // Waves 1-2: 100% basic enemies
+      basicChance = 1;
+      tankChance = 0;
+      shooterChance = 0;
+    } else if (waveNumber <= 7) {
+      // Waves 3-7: Gradually introduce tanks
+      basicChance = 1;
+      tankChance = (waveNumber - 2) * 0.2; // Increasing chance for tanks, starts at 20%
+      basicChance = 1 - tankChance; // Remaining percentage for basics
+    } else if (waveNumber <= 89) {
+      // Waves 8-89: 90% basic, 10% tank, gradually introduce shooters
+      basicChance = 0.90;
+      tankChance = 0.10;
+      shooterChance = Math.min((waveNumber - 7) * 0.01, 0.05); // Gradually introduce shooters, max at 5%
+      basicChance = 1 - (tankChance + shooterChance); // Adjust to fit 100% probability
     } else {
-      enemyType = "basic"; // Early waves, just basic enemies
+      // Wave 90+: Cap at 85% basic, 10% tank, 5% shooters
+      basicChance = 0.85;
+      tankChance = 0.10;
+      shooterChance = 0.05;
     }
-    enemies.push(createEnemy(enemyType));
+  
+    // Calculate random selection based on percentages
+    const rand = Math.random();
+  
+    if (rand < basicChance) {
+      return "basic";
+    } else if (rand < basicChance + tankChance) {
+      return "tank";
+    } else {
+      return "shooter";
+    }
   }
-}
+  
 
-function handleCurrentPlayerDamage(enemy, player) {
+  function spawnEnemy() {
+    if (!gameOver && !paused && enemiesRemaining > 0 && !waveCooldown) {
+      const enemyType = getRandomEnemyTypeByWaveNumber(currentWave);
+      enemies.push(createEnemy(enemyType));
+      enemiesRemaining--;
+    }
+  }
+  
 
+function handleCurrentPlayerCollisionDamage(enemy, player) {
   if (!player.isInvincible) {
-    player.health -= enemy.collisionDamage; // Decrease currentPlayer HP by collisionDamage
+    console.log(
+      "Player took this damage:",
+      enemy.collisionDamage - player.defense
+    );
+    player.health -= Math.max(1, enemy.collisionDamage - player.defense); // Decrease currentPlayer HP by collisionDamage
     player.isInvincible = true; // Make currentPlayer invincible after taking damage
 
     // Set a timeout to remove invincibility after the duration
@@ -293,14 +369,41 @@ function handleCurrentPlayerDamage(enemy, player) {
   }
 }
 
+function handleCurrentPlayerBulletDamage(bullet, player) {
+    if (!player.isInvincible && !bullet.firedByPlayer) {  // Ensure the bullet was fired by an enemy
+      console.log(player.health, "player.health before", bullet.damage, "bullet.damage");
+ 
+      player.health -= bullet.damage; // Decrease player's health by the bullet's damage
+      
+      console.log(player.health, "player.health after");
+      
+      player.isInvincible = true; // Make the player invincible after taking damage
+  
+      // Set a timeout to remove invincibility after the duration
+      setTimeout(() => {
+        player.isInvincible = false; // After 1 second, player can take damage again
+      }, player.invincibilityDuration);
+  
+      // Check if the player is dead
+      if (isDead(player)) {
+        endGame();
+      }
+  
+      bullet.destroy(); // Remove the bullet after it hits the player
+    }
+  }
+  
 function isDead(thing) {
   return thing.health <= 0;
 }
 
 function handleEnemyDamage(player, bullet, enemy) {
   if (!enemy.isInvincible) {
-    let totalDamage = Math.max(0, (player.attack + bullet.damage) - enemy.defense); // Calculate damage and ensure it doesn't go negative
-    totalDamage =Math.round(totalDamage);
+    let totalDamage = Math.max(
+      1,
+      player.attack + bullet.damage - enemy.defense
+    ); // Calculate damage and ensure it doesn't go negative
+    totalDamage = Math.round(totalDamage);
     enemy.health -= totalDamage;
     damageNumbers.push(new DamageNumber(enemy.x, enemy.y, totalDamage));
 
@@ -360,18 +463,22 @@ function updateGame() {
       bullet.update();
       bullet.draw();
       enemies.forEach((enemy) => {
-        if (isColliding(bullet, enemy)) {
+        if (bullet.firedByPlayer && isColliding(bullet, enemy)) {
           handleEnemyDamage(currentPlayer, bullet, enemy);
           handleWaveProgression(enemiesAliveInWave, waveCooldown);
+        }
+        if (!bullet.firedByPlayer && isColliding(bullet, currentPlayer)) {
+          handleCurrentPlayerBulletDamage(bullet, currentPlayer);
         }
       });
     });
 
     enemies.forEach((enemy) => {
       enemy.update();
+      enemy.shoot();
       enemy.draw();
       if (isColliding(enemy, currentPlayer)) {
-        handleCurrentPlayerDamage(enemy, currentPlayer);
+        handleCurrentPlayerCollisionDamage(enemy, currentPlayer);
       }
     });
 
@@ -511,8 +618,13 @@ function togglePause() {
 function shoot() {
   if (!paused && !gameOver) {
     bullets.push(
-      new Bullet(currentPlayer.x, currentPlayer.y, currentPlayer.direction)
-    );
+      new Bullet(
+        currentPlayer.x,
+        currentPlayer.y,
+        currentPlayer.direction,
+        true
+      )
+    ); // Player bullet
   }
 }
 
