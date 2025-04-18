@@ -34,28 +34,54 @@ git clone https://github.com/bloohunnits/shooterjs.git
 
 ### Step 3: Understand the Project Structure
 
-Inside the top-down-shooter folder, you’ll find the following key files:
+After cloning, your project directory looks like this:
 
-game.html: The entry point for the game that runs in the browser.
-game.js: The core JavaScript file that handles game logic.
-titleScreen.js: The JavaScript file that manages the title screen.
-game.css: The stylesheet for styling the game elements.
+  .
+  ├── node_modules/        (installed dependencies)
+  ├── package.json         (npm scripts & devDependencies)
+  ├── package-lock.json
+  └── public/
+      ├── index.html       (entry point for the game)
+      ├── game.js          (core game logic)
+      ├── titleScreen.js   (title screen logic)
+      └── game.css         (styles for the game)
 
 
 ### Step 4: Running the Game in Your Browser
-Once you have the files in your top-down-shooter folder, you can run the game directly in your browser.
 
-Open the game.html file in a web browser
-Navigate to the folder where game.html is located, and open it in your browser.
+We’ve added a simple HTTP server to avoid file:// CORS issues. To run the game locally:
 
-For Windows:
-Open File Explorer and navigate to C:\Users\YourUsername\dev\games\top-down-shooter.
-Find the game.html file.
-Right-click on game.html, select Open with, and choose your browser (Chrome, Firefox, etc.).
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the server:
+   ```bash
+   npm run start
+   ```
+   This serves the `public/` directory on port 8000.
+3. Open your browser and go to:
+   ```
+   http://localhost:8000/
+   ```
+   This will load `public/index.html` by default.
 
-For Mac:
-Open Finder and go to ~/dev/games/top-down-shooter.
-Find the game.html file.
-Right-click, choose Open With, and select Safari, Chrome, or another browser.
+### Step 5: Deploying to Firebase Hosting
 
-The game should now load in your browser.
+When you’re ready to publish:
+1. Log in to Firebase (if you’re not already):
+   ```bash
+   firebase login
+   ```
+2. Initialize Hosting in your project directory:
+   ```bash
+   firebase init hosting
+   ```
+   - Select your Firebase project (or create a new one).
+   - Set the public directory to `public`.
+   - Choose **No** when asked about single‑page app rewrites (unless you use client‑side routing).
+3. Deploy:
+   ```bash
+   firebase deploy
+   ```
+   Your game will then be live at `https://<your-project-id>.web.app` (or `.firebaseapp.com`).
