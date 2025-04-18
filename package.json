@@ -1,0 +1,24 @@
+{
+  "name": "top-down-shooter",
+  "version": "1.0.0",
+  "description": "<img width=\"1556\" alt=\"Screenshot 2024-10-18 at 12 03 43 AM\" src=\"https://github.com/user-attachments/assets/6a1292de-9120-4ce7-889a-ec03a1870ac0\">",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server public -p 8000 -c-1",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bloohunnits/shooterjs.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bloohunnits/shooterjs/issues"
+  },
+  "homepage": "https://github.com/bloohunnits/shooterjs#readme",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
