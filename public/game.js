@@ -1,3 +1,6 @@
+// Game state definitions
+import { TITLE, PLAYING, PAUSED, GAME_OVER } from './GameState.js';
+
 // Canvas setup
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -9,10 +12,10 @@ function resizeCanvas() {
   canvas.height = window.innerHeight;
 }
 
-// Game variables
+// Game variables & state machine
 let score = 0;
-let gameOver = false;
-let paused = false;
+// Current game state (TITLE, PLAYING, PAUSED, GAME_OVER)
+let gameState = PLAYING;
 const keys = {};
 const bullets = [];
 const enemies = [];
@@ -23,6 +26,21 @@ let enemiesToSpawn = 5; // Number of enemies in the first wave
 let enemiesRemaining = enemiesToSpawn; // Track how many enemies remain to spawn in the current wave
 let enemiesAliveInWave = enemiesToSpawn; // Track how many students remain alive in the wave
 let waveCooldown = false; // A flag to introduce a delay between waves
+
+// Group core game state into a single object for future refactor
+const Game = {
+  keys,
+  bullets,
+  enemies,
+  damageNumbers,
+  score,
+  currentWave,
+  enemiesToSpawn,
+  enemiesRemaining,
+  enemiesAliveInWave,
+  waveCooldown,
+};
+window.Game = Game;
 
 const player1 = {
   x: canvas.width / 2,
@@ -101,7 +119,8 @@ const player1 = {
   },
 };
 
-currentPlayer = player1;
+// Declare currentPlayer in module scope rather than assigning to an undeclared global
+let currentPlayer = player1;
 
 // Bullet class
 class Bullet {
@@ -340,7 +359,7 @@ function getRandomEnemyTypeByWaveNumber(waveNumber) {
   
 
   function spawnEnemy() {
-    if (!gameOver && !paused && enemiesRemaining > 0 && !waveCooldown) {
+    if (gameState === PLAYING && enemiesRemaining > 0 && !waveCooldown) {
       const enemyType = getRandomEnemyTypeByWaveNumber(currentWave);
       enemies.push(createEnemy(enemyType));
       enemiesRemaining--;
@@ -355,18 +374,20 @@ function handleCurrentPlayerCollisionDamage(enemy, player) {
       enemy.collisionDamage - player.defense
     );
     player.health -= Math.max(1, enemy.collisionDamage - player.defense); // Decrease currentPlayer HP by collisionDamage
-    player.isInvincible = true; // Make currentPlayer invincible after taking damage
-
-    // Set a timeout to remove invincibility after the duration
-    setTimeout(() => {
-      player.isInvincible = false; // After 1 second, currentPlayer can take damage again
-    }, player.invincibilityDuration);
+    applyInvincibility(player);
 
     // End game if health drops to 0 or below
     if (isDead(player)) {
       endGame();
     }
   }
+}
+// Utility: apply temporary invincibility to an entity
+function applyInvincibility(entity) {
+  entity.isInvincible = true;
+  setTimeout(() => {
+    entity.isInvincible = false;
+  }, entity.invincibilityDuration);
 }
 
 function handleCurrentPlayerBulletDamage(bullet, player) {
@@ -377,12 +398,7 @@ function handleCurrentPlayerBulletDamage(bullet, player) {
       
       console.log(player.health, "player.health after");
       
-      player.isInvincible = true; // Make the player invincible after taking damage
-  
-      // Set a timeout to remove invincibility after the duration
-      setTimeout(() => {
-        player.isInvincible = false; // After 1 second, player can take damage again
-      }, player.invincibilityDuration);
+      applyInvincibility(player);
   
       // Check if the player is dead
       if (isDead(player)) {
@@ -426,11 +442,6 @@ function calculateEnemiesForWave(waveNumber) {
   return Math.floor(baseEnemies * Math.pow(growthRate, waveNumber - 1));
 }
 
-function handleEnemyDeathByBullet(bullet, enemy) {
-  enemy.destroy();
-  enemiesAliveInWave--;
-  console.log(enemiesAliveInWave, "enemiesAliveInWave:");
-}
 
 function handleEnemyDeathByBullet(bullet, enemy) {
   bullet.destroy();
@@ -450,60 +461,66 @@ function handleWaveProgression(enemiesAliveInWave, waveCooldown) {
 }
 
 function updateGame() {
-  if (gameOver) return;
+  // Stop updating when game is over
+  if (gameState === GAME_OVER) return;
 
-  // If not paused and not in cooldown
-  if (!paused && !waveCooldown) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (gameState === PLAYING) {
+    if (!waveCooldown) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    currentPlayer.update();
-    currentPlayer.draw();
+      currentPlayer.update();
+      currentPlayer.draw();
 
-    bullets.forEach((bullet) => {
-      bullet.update();
-      bullet.draw();
+      bullets.forEach((bullet) => {
+        bullet.update();
+        bullet.draw();
+        enemies.forEach((enemy) => {
+          if (bullet.firedByPlayer && isColliding(bullet, enemy)) {
+            handleEnemyDamage(currentPlayer, bullet, enemy);
+            handleWaveProgression(enemiesAliveInWave, waveCooldown);
+          }
+          if (!bullet.firedByPlayer && isColliding(bullet, currentPlayer)) {
+            handleCurrentPlayerBulletDamage(bullet, currentPlayer);
+          }
+        });
+      });
+
       enemies.forEach((enemy) => {
-        if (bullet.firedByPlayer && isColliding(bullet, enemy)) {
-          handleEnemyDamage(currentPlayer, bullet, enemy);
-          handleWaveProgression(enemiesAliveInWave, waveCooldown);
-        }
-        if (!bullet.firedByPlayer && isColliding(bullet, currentPlayer)) {
-          handleCurrentPlayerBulletDamage(bullet, currentPlayer);
+        enemy.update();
+        enemy.shoot();
+        enemy.draw();
+        if (isColliding(enemy, currentPlayer)) {
+          handleCurrentPlayerCollisionDamage(enemy, currentPlayer);
         }
       });
-    });
 
-    enemies.forEach((enemy) => {
-      enemy.update();
-      enemy.shoot();
-      enemy.draw();
-      if (isColliding(enemy, currentPlayer)) {
-        handleCurrentPlayerCollisionDamage(enemy, currentPlayer);
-      }
-    });
-
-    // Update and draw damage numbers
-    damageNumbers.forEach((damageNumber) => {
-      damageNumber.update();
-      damageNumber.draw();
-    });
-
-    // Display the wave complete message during cooldown
-  } else if (waveCooldown) {
+      damageNumbers.forEach((damageNumber) => {
+        damageNumber.update();
+        damageNumber.draw();
+      });
+    } else {
+      // Wave complete / cooldown display
+      ctx.fillStyle = "#fff";
+      ctx.font = "48px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        `Wave ${currentWave} Complete!`,
+        canvas.width / 2,
+        canvas.height / 2
+      );
+      ctx.font = "24px Arial";
+      ctx.fillText(
+        "Next wave starting soon...",
+        canvas.width / 2,
+        canvas.height / 2 + 50
+      );
+    }
+  } else if (gameState === PAUSED) {
+    // Draw paused overlay
     ctx.fillStyle = "#fff";
     ctx.font = "48px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(
-      `Wave ${currentWave} Complete!`,
-      canvas.width / 2,
-      canvas.height / 2
-    );
-    ctx.font = "24px Arial";
-    ctx.fillText(
-      "Next wave starting soon...",
-      canvas.width / 2,
-      canvas.height / 2 + 50
-    );
+    ctx.fillText("Paused", canvas.width / 2, canvas.height / 2);
   }
 
   requestAnimationFrame(updateGame);
@@ -555,6 +572,8 @@ function updateScore(enemy) {
 
 function updateWave() {
   currentWave++;
+  // Reflect updated wave number in module/global scope
+  window.currentWave = currentWave;
   updateGameInfoDisplay(score, currentWave);
   enemiesToSpawn = calculateEnemiesForWave(currentWave);
   resetEnemySpawnCounters();
@@ -562,7 +581,8 @@ function updateWave() {
 }
 
 function endGame() {
-  gameOver = true;
+  // Switch to GAME_OVER state
+  gameState = GAME_OVER;
   setFinalStats();
   showGameOverDisplay();
   hideGameInfoDisplay();
@@ -585,8 +605,8 @@ function resetPlayerPosition(player) {
 function restartGame() {
   score = 0;
   currentPlayer.health = currentPlayer.maxHealth;
-  gameOver = false;
-  paused = false;
+  // Reset to PLAYING state
+  gameState = PLAYING;
   currentWave = 1; // Reset to wave 1
   enemiesToSpawn = calculateEnemiesForWave(currentWave);
   resetEnemySpawnCounters();
@@ -611,12 +631,18 @@ function isColliding(a, b) {
   );
 }
 
+// Toggle between PLAYING and PAUSED states
 function togglePause() {
-  paused = !paused;
+  if (gameState === PLAYING) {
+    gameState = PAUSED;
+  } else if (gameState === PAUSED) {
+    gameState = PLAYING;
+  }
 }
 
 function shoot() {
-  if (!paused && !gameOver) {
+  // Only fire when in PLAYING state
+  if (gameState === PLAYING) {
     bullets.push(
       new Bullet(
         currentPlayer.x,
@@ -624,7 +650,7 @@ function shoot() {
         currentPlayer.direction,
         true
       )
-    ); // Player bullet
+    );
   }
 }
 
@@ -635,13 +661,13 @@ document.getElementById("restartButton").addEventListener("click", restartGame);
 window.addEventListener("keydown", (e) => {
   keys[e.key] = true;
   if (e.key === " ") shoot();
-  if (e.key === "p" && !gameOver) togglePause();
+  if (e.key === "p" && gameState !== GAME_OVER) togglePause();
 });
 window.addEventListener("keyup", (e) => {
   keys[e.key] = false;
 });
 canvas.addEventListener("mousedown", (e) => {
-  if (!paused && !gameOver) {
+  if (gameState === PLAYING) {
     const rect = canvas.getBoundingClientRect();
     mousePos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     const dx = mousePos.x - (currentPlayer.x + currentPlayer.size / 2);
